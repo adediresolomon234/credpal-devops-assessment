@@ -1,0 +1,14 @@
+# terraform.tfvars.example
+# Copy to terraform.tfvars and fill in real values.
+# Never commit terraform.tfvars to version control.
+
+aws_region       = "us-east-1"
+project          = "credpal"
+environment      = "production"
+vpc_cidr         = "10.0.0.0/16"
+domain_name      = "api.credpal.com"
+hosted_zone_name = "credpal.com"
+container_image  = "ghcr.io/your-org/credpal-node-app:latest"
+desired_count    = 2
+db_host          = "your-rds-endpoint.us-east-1.rds.amazonaws.com"
+db_name          = "credpal"
