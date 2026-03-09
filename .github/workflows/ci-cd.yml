@@ -90,8 +90,8 @@ jobs:
         id: build
         uses: docker/build-push-action@v5
         with:
-          context: ./app                  # build context is the app/ folder
-          file: ./app/Dockerfile          # explicit path to Dockerfile
+          context: .                  # build context is the app/ folder
+          file: ./Dockerfile        # explicit path to Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
