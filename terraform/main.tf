@@ -13,14 +13,14 @@ terraform {
     }
   }
 
-  # Remote state – replace bucket/key/region with your values
-  backend "s3" {
-    bucket         = "credpal-terraform-state"
-    key            = "prod/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "credpal-tf-lock"
-  }
+  # Remote S3 backend — enable this after provisioning the S3 bucket and DynamoDB table
+  # backend "s3" {
+  #   bucket         = "credpal-terraform-state"
+  #   key            = "prod/terraform.tfstate"
+  #   region         = "us-east-1"
+  #   encrypt        = true
+  #   dynamodb_table = "credpal-tf-lock"
+  # }
 }
 
 provider "aws" {
