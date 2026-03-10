@@ -119,8 +119,8 @@ The pipeline is defined in `.github/workflows/ci-cd.yml` and triggers on every p
 |---|---|---|
 | `test` | Every push + PR | Installs deps, runs Jest tests, uploads coverage artifact |
 | `build-and-push` | Push to `main` only | Builds Docker image with BuildKit, pushes to GHCR tagged with Git SHA + `latest` |
-| `approval` | After build passes | Pauses pipeline — requires manual reviewer sign-off via GitHub Environments |
-| `deploy` | After approval | Verifies AWS credentials via `sts:GetCallerIdentity` — ECS deploy runs once infrastructure is provisioned via Terraform |
+| `approval` | After build passes | Pauses pipeline  requires manual reviewer signoff via GitHub Environments |
+| `deploy` | After approval | Verifies AWS credentials via `sts:GetCallerIdentity` ECS deploy runs once infrastructure is provisioned via Terraform |
 
 ### Required GitHub Secrets
 
@@ -130,7 +130,7 @@ The pipeline is defined in `.github/workflows/ci-cd.yml` and triggers on every p
 | `AWS_SECRET_ACCESS_KEY` | IAM user secret key |
 | `AWS_REGION` | Target AWS region (e.g. `us-east-1`) |
 
-> `GITHUB_TOKEN` is provided automatically by GitHub Actions for GHCR access — no manual setup needed.
+> `GITHUB_TOKEN` is provided automatically by GitHub Actions for GHCR access no manual setup needed.
 
 ### Manual Approval Gate
 
@@ -212,10 +212,10 @@ Then uncomment the `backend "s3"` block in `terraform/main.tf` and re-run `terra
 |---|---|
 | **Non-root container user** | Dockerfile creates `appuser` (UID 1001) — process never runs as root, limiting blast radius of a container escape |
 | **dumb-init as PID 1** | Ensures `SIGTERM` is forwarded correctly to Node.js for graceful shutdown during rolling deploys |
-| **Secrets in SSM Parameter Store** | DB credentials injected at runtime via ECS secrets — never baked into the image or stored in GitHub |
+| **Secrets in SSM Parameter Store** | DB credentials injected at runtime via ECS secrets  never baked into the image or stored in GitHub |
 | **Private ECS subnets** | Tasks run in private subnets; only the ALB (public subnets) is internet-facing |
 | **HTTPS enforced at ALB** | HTTP listener issues 301 redirect to HTTPS. TLS termination uses TLS 1.3 security policy |
-| **Security group least-privilege** | ECS security group only accepts port 3000 from the ALB security group — no direct internet access |
+| **Security group least-privilege** | ECS security group only accepts port 3000 from the ALB security group no direct internet access |
 | **No secrets in source control** | `.env`, `terraform.tfvars`, and state files are all gitignored |
 
 ### CI/CD
@@ -223,11 +223,11 @@ Then uncomment the `backend "s3"` block in `terraform/main.tf` and re-run `terra
 | Decision | Rationale |
 |---|---|
 | **Multi-stage Docker build** | Production image contains no devDependencies or build tooling — smaller and more secure |
-| **GitHub Container Registry (GHCR)** | Free for public repos; auth uses automatic `GITHUB_TOKEN` — no separate registry credentials needed |
+| **GitHub Container Registry (GHCR)** | Free for public repos; auth uses automatic `GITHUB_TOKEN`  no separate registry credentials needed |
 | **Image tagged with Git SHA** | Every deployment is traceable back to an exact commit; `latest` also updated for convenience |
 | **Manual approval gate** | Prevents accidental production deployments; enforces human review between CI and CD |
 | **ECS deployment circuit breaker** | If the new task fails its health check, ECS automatically rolls back to the previous task definition |
-| **Concurrency cancel-in-progress** | Prevents duplicate pipeline runs on rapid pushes — saves Actions minutes |
+| **Concurrency cancel-in-progress** | Prevents duplicate pipeline runs on rapid pushes saves Actions minutes |
 
 ### Infrastructure
 
@@ -238,4 +238,4 @@ Then uncomment the `backend "s3"` block in `terraform/main.tf` and re-run `terra
 | **Rolling deployment (100/200)** | At least one healthy task stays alive throughout a deployment — zero downtime without the cost of a full blue/green environment |
 | **CloudWatch Logs with 30-day retention** | Structured logs shipped via `awslogs` driver; retention cap prevents unbounded cost |
 | **S3 remote Terraform state** | Shared state with DynamoDB locking prevents concurrent `terraform apply` runs from corrupting infrastructure |
-| **/health vs /status split** | `/health` is a fast liveness check (no DB call) used by the ALB. `/status` is a deep readiness check used by monitoring — separating them prevents ALB from marking a container unhealthy during DB maintenance |
+| **/health vs /status split** | `/health` is a fast liveness check (no DB call) used by the ALB. `/status` is a deep readiness check used by monitoring  separating them prevents ALB from marking a container unhealthy during DB maintenance |
