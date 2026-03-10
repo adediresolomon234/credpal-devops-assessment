@@ -1,6 +1,6 @@
-# CredPal DevOps Assessment – Adedire
+# CredPal DevOps Assessment
 
-> Production-ready DevOps pipeline for a Node.js application.  
+> Production-ready DevOps pipeline for a Node.js application.
 > **Stack:** Node.js 20 · Express · PostgreSQL · Docker · GitHub Actions · Terraform (AWS ECS Fargate)
 
 ---
@@ -26,7 +26,7 @@
 │   ├── init.sql          # DB schema bootstrap
 │   └── package.json
 ├── terraform/
-│   ├── main.tf           # VPC, subnets, ALB, ACM, ECS Fargate
+│   ├── main.tf           # VPC, subnets, ALB, ACM, ECS Fargate, CloudWatch
 │   ├── variables.tf
 │   ├── outputs.tf
 │   └── terraform.tfvars.example
@@ -44,31 +44,31 @@
 
 ### Prerequisites
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) ≥ 24
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) >= 24
 - [Docker Compose](https://docs.docker.com/compose/) (bundled with Docker Desktop)
 
 ### Steps
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/your-org/credpal-devops-assessment.git
+
+git clone https://github.com/adediresolomon234/credpal-devops-assessment.git
 cd credpal-devops-assessment
 
-# 2. Create your local environment file
-cp .env.example .env
-# Edit .env and set a strong DB_PASSWORD
 
-# 3. Start the stack
+cp .env.example .env
+
+
+
 docker compose up --build
 
-# 4. Verify
+
 curl http://localhost:3000/health
 curl http://localhost:3000/status
 curl -X POST http://localhost:3000/process \
   -H "Content-Type: application/json" \
-  -d '{"payload": {"action": "test"}}'
+  -d '{"action": "test", "value": 123}'
 
-# 5. Tear down
+
 docker compose down -v
 ```
 
@@ -86,93 +86,121 @@ npm test
 
 | Environment | URL | Notes |
 |---|---|---|
-| Local | `http://localhost:3000` | docker compose |
-| Production | `https://api.credpal.com` | Behind ALB + ACM cert |
+| Local | `http://localhost:3000` | via docker compose |
+| Production | `https://api.credpal.com` | Behind ALB + ACM SSL cert |
 
 ### Endpoints
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/health` | Liveness probe – returns 200 + uptime |
-| `GET` | `/status` | Readiness probe – checks DB connectivity |
-| `POST` | `/process` | Accepts `{ "payload": {...} }`, inserts a job row |
+| `GET` | `/health` | Liveness probe — returns 200 + uptime. Does not hit the DB. |
+| `GET` | `/status` | Readiness probe — verifies DB connectivity. Returns 503 if DB is down. |
+| `POST` | `/process` | Accepts a JSON payload, writes a job record to PostgreSQL, returns the created row. |
 
 ---
 
 ## CI/CD Pipeline
 
-The pipeline lives in `.github/workflows/ci-cd.yml` and is triggered on every push to `main` and every pull request targeting `main`.
+The pipeline is defined in `.github/workflows/ci-cd.yml` and triggers on every push to `main` and every pull request targeting `main`.
 
 ```
 ┌────────────┐    ┌──────────────────┐    ┌──────────────┐    ┌─────────────┐
 │   test     │───▶│ build-and-push   │───▶│   approval   │───▶│   deploy    │
-│            │    │                  │    │  (manual gate│    │ (ECS rolling│
-│ npm ci     │    │ docker buildx    │    │  via GitHub  │    │  update)    │
-│ npm test   │    │ push → GHCR      │    │  Environments│    │             │
+│            │    │                  │    │ (manual gate)│    │             │
+│ npm ci     │    │ docker buildx    │    │ via GitHub   │    │ AWS verify  │
+│ npm test   │    │ push to GHCR     │    │ Environments │    │ + readiness │
 └────────────┘    └──────────────────┘    └──────────────┘    └─────────────┘
                    (only on main push)
 ```
+
+### Job Breakdown
+
+| Job | Trigger | What it does |
+|---|---|---|
+| `test` | Every push + PR | Installs deps, runs Jest tests, uploads coverage artifact |
+| `build-and-push` | Push to `main` only | Builds Docker image with BuildKit, pushes to GHCR tagged with Git SHA + `latest` |
+| `approval` | After build passes | Pauses pipeline — requires manual reviewer sign-off via GitHub Environments |
+| `deploy` | After approval | Verifies AWS credentials via `sts:GetCallerIdentity` — ECS deploy runs once infrastructure is provisioned via Terraform |
 
 ### Required GitHub Secrets
 
 | Secret | Description |
 |---|---|
-| `AWS_ACCESS_KEY_ID` | IAM user with ECS/ECR permissions |
-| `AWS_SECRET_ACCESS_KEY` | Corresponding secret key |
+| `AWS_ACCESS_KEY_ID` | IAM user access key |
+| `AWS_SECRET_ACCESS_KEY` | IAM user secret key |
 | `AWS_REGION` | Target AWS region (e.g. `us-east-1`) |
-| `ECS_CLUSTER` | ECS cluster name output by Terraform |
-| `ECS_SERVICE` | ECS service name output by Terraform |
 
-> `GITHUB_TOKEN` is provided automatically by GitHub Actions for GHCR access.
+> `GITHUB_TOKEN` is provided automatically by GitHub Actions for GHCR access — no manual setup needed.
 
 ### Manual Approval Gate
 
-The `approval` job uses a GitHub **Environment** named `production`. To enable the gate:
+The `approval` job uses a GitHub **Environment** named `production`. To configure it:
 
-1. Go to **Settings → Environments → production** in your repo.
-2. Add required reviewers.
-3. Any push to `main` will pause at the approval step until a reviewer approves.
+1. Go to **Settings → Environments → production** in your repo
+2. Add yourself (or a reviewer) as a required reviewer
+3. Every push to `main` will pause at this step until approved
 
 ---
 
 ## Deploying to Production
 
-### First-time Terraform Bootstrap
+### Prerequisites
+
+- [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.6.0
+- AWS CLI configured with appropriate credentials
+- A Route 53 hosted zone for your domain
+
+### First-time Infrastructure Provisioning
 
 ```bash
 cd terraform
 
-# Copy and fill in your values
+
 cp terraform.tfvars.example terraform.tfvars
-nano terraform.tfvars
 
-# Initialise Terraform (uses S3 backend – create the bucket first)
+aws ssm put-parameter \
+  --name "/credpal/db_user" \
+  --value "credpal_user" \
+  --type SecureString
+
+aws ssm put-parameter \
+  --name "/credpal/db_password" \
+  --value "your-strong-password" \
+  --type SecureString
+
+
 terraform init
-
-# Preview the plan
 terraform plan
-
-# Apply
 terraform apply
 ```
 
-> **DB credentials** are stored in AWS SSM Parameter Store (not in Terraform state).  
-> Create them once before applying:
->
-> ```bash
-> aws ssm put-parameter --name "/credpal/db_user" \
->   --value "credpal_user" --type SecureString
-> aws ssm put-parameter --name "/credpal/db_password" \
->   --value "your-strong-password" --type SecureString
-> ```
+After `terraform apply` completes, add the ECS cluster and service names as GitHub Secrets:
+- `ECS_CLUSTER` — from `terraform output ecs_cluster_name`
+- `ECS_SERVICE` — from `terraform output ecs_service_name`
 
 ### Subsequent Deployments
 
-After the infrastructure is in place, every merge to `main` automatically:
+Every merge to `main` automatically:
 1. Runs tests
 2. Builds and pushes a new Docker image tagged with the Git SHA
 3. Waits for manual approval
-4. Triggers a **rolling ECS update** (100 % min healthy, 200 % max) — zero downtime
+4. Triggers a **rolling ECS update** (100% min healthy, 200% max) — zero downtime guaranteed
+
+### Terraform State
+
+Remote state is configured via S3 + DynamoDB locking (commented out in `main.tf` for local development). To enable for a team:
+
+```bash
+
+aws s3 mb s3://credpal-terraform-state --region us-east-1
+aws dynamodb create-table \
+  --table-name credpal-tf-lock \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST
+```
+
+Then uncomment the `backend "s3"` block in `terraform/main.tf` and re-run `terraform init`.
 
 ---
 
@@ -182,30 +210,32 @@ After the infrastructure is in place, every merge to `main` automatically:
 
 | Decision | Rationale |
 |---|---|
-| **Non-root container user** | The Dockerfile creates `appuser` (UID 1001) so the process never runs as root, limiting blast radius of a container escape. |
-| **dumb-init as PID 1** | Ensures `SIGTERM` is forwarded correctly to Node.js for graceful shutdown. |
-| **Secrets in SSM Parameter Store** | DB credentials are injected at runtime via ECS secrets — never baked into the image or stored in GitHub. |
-| **Private ECS subnets** | Tasks run in private subnets; only the ALB (in public subnets) is internet-facing. |
-| **ALB forces HTTPS** | HTTP listener issues a 301 redirect to HTTPS. TLS termination uses the TLS 1.3 security policy. |
-| **SG least-privilege** | The ECS security group only accepts traffic on port 3000 from the ALB security group. |
-| **`.gitignore` guards** | `.env`, `terraform.tfvars`, and state files are excluded from version control. |
+| **Non-root container user** | Dockerfile creates `appuser` (UID 1001) — process never runs as root, limiting blast radius of a container escape |
+| **dumb-init as PID 1** | Ensures `SIGTERM` is forwarded correctly to Node.js for graceful shutdown during rolling deploys |
+| **Secrets in SSM Parameter Store** | DB credentials injected at runtime via ECS secrets — never baked into the image or stored in GitHub |
+| **Private ECS subnets** | Tasks run in private subnets; only the ALB (public subnets) is internet-facing |
+| **HTTPS enforced at ALB** | HTTP listener issues 301 redirect to HTTPS. TLS termination uses TLS 1.3 security policy |
+| **Security group least-privilege** | ECS security group only accepts port 3000 from the ALB security group — no direct internet access |
+| **No secrets in source control** | `.env`, `terraform.tfvars`, and state files are all gitignored |
 
 ### CI/CD
 
 | Decision | Rationale |
 |---|---|
-| **Multi-stage Docker build** | Keeps the production image lean (no devDependencies, no build tooling). |
-| **GitHub Container Registry** | Free for public repos; GHCR tokens are scoped to the repo via `GITHUB_TOKEN` — no separate registry credentials needed. |
-| **Image tagged with Git SHA** | Ensures every deployment is traceable back to an exact commit; `latest` is also updated for convenience. |
-| **Manual approval environment** | Prevents accidental production deployments; enforces a human review step between CI and CD. |
-| **ECS deployment circuit breaker** | If the new task fails its health check, ECS automatically rolls back to the previous task definition. |
+| **Multi-stage Docker build** | Production image contains no devDependencies or build tooling — smaller and more secure |
+| **GitHub Container Registry (GHCR)** | Free for public repos; auth uses automatic `GITHUB_TOKEN` — no separate registry credentials needed |
+| **Image tagged with Git SHA** | Every deployment is traceable back to an exact commit; `latest` also updated for convenience |
+| **Manual approval gate** | Prevents accidental production deployments; enforces human review between CI and CD |
+| **ECS deployment circuit breaker** | If the new task fails its health check, ECS automatically rolls back to the previous task definition |
+| **Concurrency cancel-in-progress** | Prevents duplicate pipeline runs on rapid pushes — saves Actions minutes |
 
 ### Infrastructure
 
 | Decision | Rationale |
 |---|---|
-| **ECS Fargate over EC2** | No node management, automatic patching, and pay-per-task-second pricing suits a lean team. |
-| **Two AZs** | ALB and ECS tasks are spread across two availability zones for HA. |
-| **Rolling deployment (100/200)** | At least one healthy task stays alive throughout a deployment, ensuring zero downtime without the cost of a full blue/green environment. |
-| **CloudWatch Logs with 30-day retention** | Structured application logs are shipped to CloudWatch via `awslogs` driver; retention cap avoids unbounded cost. |
-| **S3 remote Terraform state** | Shared state with DynamoDB locking prevents concurrent applies from corrupting infrastructure. |
+| **ECS Fargate over EC2** | No node management, automatic patching, pay-per-task-second pricing |
+| **Two availability zones** | ALB and ECS tasks spread across 2 AZs for high availability |
+| **Rolling deployment (100/200)** | At least one healthy task stays alive throughout a deployment — zero downtime without the cost of a full blue/green environment |
+| **CloudWatch Logs with 30-day retention** | Structured logs shipped via `awslogs` driver; retention cap prevents unbounded cost |
+| **S3 remote Terraform state** | Shared state with DynamoDB locking prevents concurrent `terraform apply` runs from corrupting infrastructure |
+| **/health vs /status split** | `/health` is a fast liveness check (no DB call) used by the ALB. `/status` is a deep readiness check used by monitoring — separating them prevents ALB from marking a container unhealthy during DB maintenance |
