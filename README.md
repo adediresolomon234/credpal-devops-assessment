@@ -94,8 +94,13 @@ npm test
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/health` | Liveness probe  returns 200 + uptime. Does not hit the DB. |
+<img width="843" height="227" alt="image" src="https://github.com/user-attachments/assets/9bdb42ee-3285-47bc-9820-92a361854f0c" />
+
 | `GET` | `/status` | Readiness probe  verifies DB connectivity. Returns 503 if DB is down. |
+<img width="843" height="220" alt="image" src="https://github.com/user-attachments/assets/4234cd1a-b89e-46aa-8665-23949e1eb93f" />
+
 | `POST` | `/process` | Accepts a JSON payload, writes a job record to PostgreSQL, returns the created row. |
+<img width="884" height="210" alt="image" src="https://github.com/user-attachments/assets/26beeb79-1fe3-4488-a374-75690a6256f9" />
 
 ---
 
@@ -111,6 +116,9 @@ The pipeline is defined in `.github/workflows/ci-cd.yml` and triggers on every p
 │ npm test   │    │ push to GHCR     │    │ Environments │    │ + readiness │
 └────────────┘    └──────────────────┘    └──────────────┘    └─────────────┘
                    (only on main push)
+
+
+
 ```
 
 ### Job Breakdown
@@ -239,3 +247,6 @@ Then uncomment the `backend "s3"` block in `terraform/main.tf` and re-run `terra
 | **CloudWatch Logs with 30-day retention** | Structured logs shipped via `awslogs` driver; retention cap prevents unbounded cost |
 | **S3 remote Terraform state** | Shared state with DynamoDB locking prevents concurrent `terraform apply` runs from corrupting infrastructure |
 | **/health vs /status split** | `/health` is a fast liveness check (no DB call) used by the ALB. `/status` is a deep readiness check used by monitoring  separating them prevents ALB from marking a container unhealthy during DB maintenance |
+
+<img width="1344" height="502" alt="image" src="https://github.com/user-attachments/assets/4ed847d2-67ac-40cb-b2d8-48881db72ac9" />
+
