@@ -184,7 +184,7 @@ Every merge to `main` automatically:
 1. Runs tests
 2. Builds and pushes a new Docker image tagged with the Git SHA
 3. Waits for manual approval
-4. Triggers a **rolling ECS update** (100% min healthy, 200% max) — zero downtime guaranteed
+4. Triggers a **rolling ECS update** (100% min healthy, 200% max) zero downtime guaranteed
 
 ### Terraform State
 
