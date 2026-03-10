@@ -93,8 +93,8 @@ npm test
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/health` | Liveness probe — returns 200 + uptime. Does not hit the DB. |
-| `GET` | `/status` | Readiness probe — verifies DB connectivity. Returns 503 if DB is down. |
+| `GET` | `/health` | Liveness probe  returns 200 + uptime. Does not hit the DB. |
+| `GET` | `/status` | Readiness probe  verifies DB connectivity. Returns 503 if DB is down. |
 | `POST` | `/process` | Accepts a JSON payload, writes a job record to PostgreSQL, returns the created row. |
 
 ---
@@ -175,8 +175,8 @@ terraform apply
 ```
 
 After `terraform apply` completes, add the ECS cluster and service names as GitHub Secrets:
-- `ECS_CLUSTER` — from `terraform output ecs_cluster_name`
-- `ECS_SERVICE` — from `terraform output ecs_service_name`
+- `ECS_CLUSTER`  from `terraform output ecs_cluster_name`
+- `ECS_SERVICE`  from `terraform output ecs_service_name`
 
 ### Subsequent Deployments
 
@@ -235,7 +235,7 @@ Then uncomment the `backend "s3"` block in `terraform/main.tf` and re-run `terra
 |---|---|
 | **ECS Fargate over EC2** | No node management, automatic patching, pay-per-task-second pricing |
 | **Two availability zones** | ALB and ECS tasks spread across 2 AZs for high availability |
-| **Rolling deployment (100/200)** | At least one healthy task stays alive throughout a deployment — zero downtime without the cost of a full blue/green environment |
+| **Rolling deployment (100/200)** | At least one healthy task stays alive throughout a deployment  zero downtime without the cost of a full blue/green environment |
 | **CloudWatch Logs with 30-day retention** | Structured logs shipped via `awslogs` driver; retention cap prevents unbounded cost |
 | **S3 remote Terraform state** | Shared state with DynamoDB locking prevents concurrent `terraform apply` runs from corrupting infrastructure |
 | **/health vs /status split** | `/health` is a fast liveness check (no DB call) used by the ALB. `/status` is a deep readiness check used by monitoring  separating them prevents ALB from marking a container unhealthy during DB maintenance |
