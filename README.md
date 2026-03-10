@@ -210,7 +210,7 @@ Then uncomment the `backend "s3"` block in `terraform/main.tf` and re-run `terra
 
 | Decision | Rationale |
 |---|---|
-| **Non-root container user** | Dockerfile creates `appuser` (UID 1001) — process never runs as root, limiting blast radius of a container escape |
+| **Non-root container user** | Dockerfile creates `appuser` (UID 1001) process never runs as root, limiting blast radius of a container escape |
 | **dumb-init as PID 1** | Ensures `SIGTERM` is forwarded correctly to Node.js for graceful shutdown during rolling deploys |
 | **Secrets in SSM Parameter Store** | DB credentials injected at runtime via ECS secrets  never baked into the image or stored in GitHub |
 | **Private ECS subnets** | Tasks run in private subnets; only the ALB (public subnets) is internet-facing |
@@ -222,7 +222,7 @@ Then uncomment the `backend "s3"` block in `terraform/main.tf` and re-run `terra
 
 | Decision | Rationale |
 |---|---|
-| **Multi-stage Docker build** | Production image contains no devDependencies or build tooling — smaller and more secure |
+| **Multi-stage Docker build** | Production image contains no devDependencies or build tooling  smaller and more secure |
 | **GitHub Container Registry (GHCR)** | Free for public repos; auth uses automatic `GITHUB_TOKEN`  no separate registry credentials needed |
 | **Image tagged with Git SHA** | Every deployment is traceable back to an exact commit; `latest` also updated for convenience |
 | **Manual approval gate** | Prevents accidental production deployments; enforces human review between CI and CD |
