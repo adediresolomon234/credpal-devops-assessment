@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ─── Job 1: Test ────────────────────────────────────────────────────────────
+ 
   test:
     name: Install & Test
     runs-on: ubuntu-latest
@@ -29,10 +29,10 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: app/package-lock.json   # full path from repo root
+          cache-dependency-path: app/package-lock.json   
 
       - name: Install dependencies
-        working-directory: app                            # scoped per-step, not globally
+        working-directory: app                            
         run: npm ci
 
       - name: Run tests
@@ -44,10 +44,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: app/coverage/                            # full path from repo root
-          if-no-files-found: warn                        # won't hard-fail if coverage is empty
+          path: app/coverage/                            
+          if-no-files-found: warn                       
 
-  # ─── Job 2: Build & Push ────────────────────────────────────────────────────
+ 
   build-and-push:
     name: Build & Push Image
     runs-on: ubuntu-latest
@@ -90,8 +90,8 @@ jobs:
         id: build
         uses: docker/build-push-action@v5
         with:
-          context: .                  # build context is the app/ folder
-          file: ./Dockerfile        # explicit path to Dockerfile
+          context: .                  
+          file: ./Dockerfile        
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -99,7 +99,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ─── Job 3: Manual approval gate ────────────────────────────────────────────
+  
   approval:
     name: Await Production Approval
     runs-on: ubuntu-latest
@@ -110,7 +110,7 @@ jobs:
       - name: Approved
         run: echo "Production deployment approved. Proceeding..."
 
-  # ─── Job 4: Deploy ──────────────────────────────────────────────────────────
+
   deploy:
     name: Deploy to Production (ECS Rolling)
     runs-on: ubuntu-latest
